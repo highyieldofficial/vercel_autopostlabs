@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/cron/ingest", "schedule": "* * * * *" },
+    { "path": "/api/cron/token-refresh", "schedule": "0 * * * *" },
+    { "path": "/api/cron/analytics-sync", "schedule": "0 */6 * * *" }
+  ]
+}
