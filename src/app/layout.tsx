@@ -2,15 +2,15 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'AutoPost Labs — Organic Marketing on Autopilot',
+  title: 'Stemkast — Organic Marketing on Autopilot',
   description:
     'Connect your store, generate social content with AI, and auto-publish to every platform.',
-  metadataBase: new URL('https://autopostlabs.com'),
+  metadataBase: new URL('https://stemkast.com'),
   openGraph: {
-    title: 'AutoPost Labs',
+    title: 'Stemkast',
     description: 'AI-powered organic marketing for e-commerce stores.',
-    url: 'https://autopostlabs.com',
-    siteName: 'AutoPost Labs',
+    url: 'https://stemkast.com',
+    siteName: 'Stemkast',
     type: 'website',
   },
 }
