@@ -20,8 +20,8 @@ export default async function DashboardOverview() {
     userId ? api.posts.list({ status: 'failed' }, userId).catch(() => []) : Promise.resolve([]),
   ])
 
-  const totalProducts = businesses.reduce((s, b) => s + (b._count?.products ?? 0), 0)
-  const totalPosts = businesses.reduce((s, b) => s + (b._count?.contentPosts ?? 0), 0)
+  const totalProducts = (businesses as any[]).reduce((s: number, b) => s + (b._count?.products ?? 0), 0)
+  const totalPosts = (businesses as any[]).reduce((s: number, b) => s + (b._count?.contentPosts ?? 0), 0)
 
   return (
     <div>
