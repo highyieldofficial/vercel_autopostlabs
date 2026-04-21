@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    serverActions: { allowedOrigins: ['localhost:3000', 'stemkast.com', '*.stemkast.com'] },
+    serverActions: { allowedOrigins: ['localhost:3000', 'autopostlabs.com', '*.autopostlabs.com'] },
   },
 }
 

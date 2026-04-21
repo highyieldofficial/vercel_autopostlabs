@@ -14,7 +14,7 @@ const registerSchema = z.object({
 export async function POST(req: NextRequest) {
   // 5 registrations per IP per hour
   const rl = rateLimit(`register:${getIp(req)}`, 5, 60 * 60 * 1000)
-  if (!rl.ok) {
+  if (rl.ok === false) {
     return NextResponse.json(
       { error: `Too many requests. Try again in ${rl.retryAfterSec}s.` },
       { status: 429 },

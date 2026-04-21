@@ -16,7 +16,7 @@ const IDENTIFIER_PREFIX = 'password-reset:'
 export async function POST(req: NextRequest) {
   // 3 password-reset requests per IP per 15 minutes
   const rl = rateLimit(`forgot-pw:${getIp(req)}`, 3, 15 * 60 * 1000)
-  if (!rl.ok) {
+  if (rl.ok === false) {
     return NextResponse.json(
       { error: `Too many requests. Try again in ${rl.retryAfterSec}s.` },
       { status: 429 },
