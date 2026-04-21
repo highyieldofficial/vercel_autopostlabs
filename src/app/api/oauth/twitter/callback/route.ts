@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
         permissionsGranted: ['tweet.read', 'tweet.write'],
         isActive: true,
         updatedAt: new Date(),
-      },
+      } as any,
     })
 
   const response = NextResponse.redirect(

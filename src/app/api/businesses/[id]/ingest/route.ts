@@ -81,7 +81,7 @@ export async function POST(
               sourceImages: p.images ?? [],
               isActive: true,
               updatedAt: new Date(),
-            },
+            } as any,
           })
       }
     } catch (err) {

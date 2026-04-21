@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
               sourceImages: p.images ?? [],
               isActive: true,
               updatedAt: new Date(),
-            },
+            } as any,
           })
       }
     } catch (err) {

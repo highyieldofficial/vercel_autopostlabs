@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
         permissionsGranted: ['pages_manage_posts', 'pages_read_engagement'],
         isActive: true,
         updatedAt: new Date(),
-      },
+      } as any,
     })
 
   // Also store for Instagram (same Page ID is used as Instagram Business Account)
@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
         permissionsGranted: ['instagram_basic', 'instagram_content_publish'],
         isActive: true,
         updatedAt: new Date(),
-      },
+      } as any,
     })
 
   return NextResponse.redirect(

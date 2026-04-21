@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
         permissionsGranted,
         isActive: true,
         updatedAt: new Date(),
-      },
+      } as any,
     })
     .returning({
       id: platformConnections.id,

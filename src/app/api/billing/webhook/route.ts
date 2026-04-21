@@ -99,7 +99,7 @@ async function handleWhopEvent(event: WhopWebhookEvent) {
             currentPeriodEnd: data.valid_until ? new Date(data.valid_until) : null,
             cancelAtPeriodEnd: data.cancel_at_period_end ?? false,
             updatedAt: new Date(),
-          },
+          } as any,
         })
       break
     }
