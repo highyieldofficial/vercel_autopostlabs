@@ -39,13 +39,14 @@ export async function POST(req: NextRequest) {
   }
 
   const hashed = await bcrypt.hash(password, 12)
-  await db.insert(users).values({
+  const newUser: typeof users.$inferInsert = {
     id: crypto.randomUUID(),
     email,
     password: hashed,
     name: name ?? null,
     updatedAt: new Date(),
-  })
+  }
+  await db.insert(users).values(newUser)
 
   return NextResponse.json({ ok: true }, { status: 201 })
 }
