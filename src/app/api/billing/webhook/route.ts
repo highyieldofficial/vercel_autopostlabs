@@ -107,7 +107,7 @@ async function handleWhopEvent(event: WhopWebhookEvent) {
     case 'membership_cancel_at_period_end_changed': {
       await db
         .update(subscriptions)
-        .set({ cancelAtPeriodEnd: data.cancel_at_period_end ?? true, updatedAt: new Date() })
+        .set({ cancelAtPeriodEnd: data.cancel_at_period_end ?? true, updatedAt: new Date() } as any)
         .where(eq(subscriptions.whopMembershipId, data.id))
       break
     }
@@ -120,7 +120,7 @@ async function handleWhopEvent(event: WhopWebhookEvent) {
           tier: 'free',
           cancelAtPeriodEnd: true,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(subscriptions.whopMembershipId, data.id))
       break
     }
@@ -128,7 +128,7 @@ async function handleWhopEvent(event: WhopWebhookEvent) {
     case 'payment_failed': {
       await db
         .update(subscriptions)
-        .set({ status: 'past_due', updatedAt: new Date() })
+        .set({ status: 'past_due', updatedAt: new Date() } as any)
         .where(eq(subscriptions.whopMembershipId, data.id))
       break
     }

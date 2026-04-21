@@ -66,7 +66,7 @@ export async function GET(req: Request) {
             : conn.refreshToken,
           tokenExpiresAt: newTokens.expiresAt ?? null,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(platformConnections.id, conn.id))
 
       console.log(
@@ -80,7 +80,7 @@ export async function GET(req: Request) {
       )
       await db
         .update(platformConnections)
-        .set({ isActive: false, updatedAt: new Date() })
+        .set({ isActive: false, updatedAt: new Date() } as any)
         .where(eq(platformConnections.id, conn.id))
       failed++
     }

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   const email = record.identifier.slice(IDENTIFIER_PREFIX.length)
   const hashed = await bcrypt.hash(password, 12)
 
-  await db.update(users).set({ password: hashed, updatedAt: new Date() }).where(eq(users.email, email))
+  await db.update(users).set({ password: hashed, updatedAt: new Date() } as any).where(eq(users.email, email))
 
   // Delete the used token
   await db

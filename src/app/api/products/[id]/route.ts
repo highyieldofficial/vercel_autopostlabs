@@ -77,7 +77,7 @@ export async function PATCH(
 
   const [updated] = await db
     .update(products)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({ ...parsed.data, updatedAt: new Date() } as any)
     .where(eq(products.id, id))
     .returning()
 

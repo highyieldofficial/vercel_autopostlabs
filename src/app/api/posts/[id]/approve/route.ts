@@ -27,7 +27,7 @@ export async function POST(
 
   await db
     .update(contentPosts)
-    .set({ status: 'scheduled', updatedAt: new Date() })
+    .set({ status: 'scheduled', updatedAt: new Date() } as any)
     .where(eq(contentPosts.id, id))
 
   return NextResponse.json({ approved: true })

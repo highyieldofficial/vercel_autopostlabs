@@ -66,7 +66,7 @@ export async function PATCH(
   const scheduledAt = new Date(parsed.data.scheduledAt)
   await db
     .update(contentPosts)
-    .set({ scheduledAt, updatedAt: new Date() })
+    .set({ scheduledAt, updatedAt: new Date() } as any)
     .where(eq(contentPosts.id, id))
 
   return NextResponse.json({ scheduled: true, scheduledAt })

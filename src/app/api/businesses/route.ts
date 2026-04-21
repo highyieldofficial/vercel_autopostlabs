@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       if (!result) {
         await db
           .update(businesses)
-          .set({ ingestionStatus: 'failed', updatedAt: new Date() })
+          .set({ ingestionStatus: 'failed', updatedAt: new Date() } as any)
           .where(eq(businesses.id, businessId))
         return
       }
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
           ingestionStatus: 'completed',
           lastCrawledAt: new Date(),
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(businesses.id, businessId))
       // Upsert products
       for (const p of result.products ?? []) {
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
       console.error('[ingest] failed:', err)
       await db
         .update(businesses)
-        .set({ ingestionStatus: 'failed', updatedAt: new Date() })
+        .set({ ingestionStatus: 'failed', updatedAt: new Date() } as any)
         .where(eq(businesses.id, businessId))
     }
   })()

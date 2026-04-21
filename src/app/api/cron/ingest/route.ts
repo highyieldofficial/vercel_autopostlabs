@@ -30,7 +30,7 @@ export async function GET(req: Request) {
     pending.map(async (biz) => {
       await db
         .update(businesses)
-        .set({ ingestionStatus: 'in_progress', updatedAt: new Date() })
+        .set({ ingestionStatus: 'in_progress', updatedAt: new Date() } as any)
         .where(eq(businesses.id, biz.id))
 
       const result = await crawl(biz.websiteUrl)
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
           ingestionStatus: 'completed',
           lastCrawledAt: new Date(),
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(businesses.id, biz.id))
 
       for (const p of result.products ?? []) {
@@ -86,7 +86,7 @@ export async function GET(req: Request) {
       failed++
       await db
         .update(businesses)
-        .set({ ingestionStatus: 'failed', updatedAt: new Date() })
+        .set({ ingestionStatus: 'failed', updatedAt: new Date() } as any)
         .where(eq(businesses.id, pending[i].id))
     }
   }

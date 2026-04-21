@@ -20,7 +20,7 @@ export async function POST(
 
   await db
     .update(businesses)
-    .set({ ingestionStatus: 'pending', updatedAt: new Date() })
+    .set({ ingestionStatus: 'pending', updatedAt: new Date() } as any)
     .where(eq(businesses.id, id))
 
   const { websiteUrl } = business
@@ -36,7 +36,7 @@ export async function POST(
       if (!result) {
         await db
           .update(businesses)
-          .set({ ingestionStatus: 'failed', updatedAt: new Date() })
+          .set({ ingestionStatus: 'failed', updatedAt: new Date() } as any)
           .where(eq(businesses.id, businessId))
         return
       }
@@ -51,7 +51,7 @@ export async function POST(
           ingestionStatus: 'completed',
           lastCrawledAt: new Date(),
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(businesses.id, businessId))
       for (const p of result.products ?? []) {
         await db
@@ -88,7 +88,7 @@ export async function POST(
       console.error('[ingest] failed:', err)
       await db
         .update(businesses)
-        .set({ ingestionStatus: 'failed', updatedAt: new Date() })
+        .set({ ingestionStatus: 'failed', updatedAt: new Date() } as any)
         .where(eq(businesses.id, businessId))
     }
   })()

@@ -85,7 +85,7 @@ export async function DELETE(
 
   await db
     .update(platformConnections)
-    .set({ isActive: false, updatedAt: new Date() })
+    .set({ isActive: false, updatedAt: new Date() } as any)
     .where(
       and(
         eq(platformConnections.id, id),

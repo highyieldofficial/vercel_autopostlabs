@@ -50,7 +50,7 @@ export async function POST(
 
   await db
     .update(contentPosts)
-    .set({ status: 'publishing', updatedAt: new Date() })
+    .set({ status: 'publishing', updatedAt: new Date() } as any)
     .where(eq(contentPosts.id, id))
 
   const { getAdapter } = await import('@/lib/social')
@@ -87,14 +87,14 @@ export async function POST(
         publishedAt: new Date(),
         externalPostId: result.externalPostId,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(contentPosts.id, id))
 
     return NextResponse.json({ published: true, externalPostId: result.externalPostId })
   } else {
     await db
       .update(contentPosts)
-      .set({ status: 'failed', updatedAt: new Date() })
+      .set({ status: 'failed', updatedAt: new Date() } as any)
       .where(eq(contentPosts.id, id))
 
     return NextResponse.json(
