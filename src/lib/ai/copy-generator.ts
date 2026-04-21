@@ -89,7 +89,7 @@ Respond ONLY with valid JSON (no markdown, no code fences):
   const json = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
   const parsed = copySchema.parse(JSON.parse(json))
 
-  return { platform, ...parsed }
+  return { platform, ...parsed } as GeneratedCopy
 }
 
 // ─── Brand Analyzer ───────────────────────────────────────────────────────────
