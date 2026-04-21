@@ -121,7 +121,7 @@ export const api = {
         brandProfile: business.brandProfile as BrandProfile | null,
         products: business.products.map(mapProduct),
         platformConnections: business.platformConnections.map(mapConnection),
-        _count: { contentPosts: business.contentPosts.length },
+        _count: { products: business.products.length, contentPosts: business.contentPosts.length },
       }
     },
   },
