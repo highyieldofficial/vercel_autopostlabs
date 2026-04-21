@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       websiteUrl,
       ingestionStatus: 'pending',
       updatedAt: new Date(),
-    })
+    } as any)
     .returning()
 
   // Fire and forget — Vercel will keep the function alive for background work
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
             shopifyHandle: p.handle,
             isActive: true,
             updatedAt: new Date(),
-          })
+          } as any)
           .onConflictDoUpdate({
             target: [products.businessId, products.externalId],
             set: {

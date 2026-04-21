@@ -71,7 +71,7 @@ export async function GET(req: Request) {
             shopifyHandle: p.handle,
             isActive: true,
             updatedAt: new Date(),
-          })
+          } as any)
           .onConflictDoUpdate({
             target: [products.businessId, products.externalId],
             set: { name: p.name, updatedAt: new Date() },

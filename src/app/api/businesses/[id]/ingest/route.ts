@@ -70,7 +70,7 @@ export async function POST(
             shopifyHandle: p.handle,
             isActive: true,
             updatedAt: new Date(),
-          })
+          } as any)
           .onConflictDoUpdate({
             target: [products.businessId, products.externalId],
             set: {

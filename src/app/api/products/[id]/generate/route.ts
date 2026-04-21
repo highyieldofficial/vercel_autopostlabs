@@ -88,7 +88,7 @@ export async function POST(
             altText: copy.altText,
           },
           updatedAt: new Date(),
-        })
+        } as any)
         .returning()
 
       createdPosts.push(post)

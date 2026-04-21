@@ -76,7 +76,7 @@ export async function GET(req: Request) {
         saves: metrics.saves ?? 0,
         videoViews: metrics.video_views ?? 0,
         engagementRate,
-      })
+      } as any)
 
       synced++
     } catch (err) {

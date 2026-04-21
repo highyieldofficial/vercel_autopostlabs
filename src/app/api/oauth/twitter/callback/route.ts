@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
       platformAccountName: `@${userData.data?.username}`,
       permissionsGranted: ['tweet.read', 'tweet.write'],
       updatedAt: new Date(),
-    })
+    } as any)
     .onConflictDoUpdate({
       target: [platformConnections.businessId, platformConnections.platform],
       set: {

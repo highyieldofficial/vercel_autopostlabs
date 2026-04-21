@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
       platformAccountName: page.name,
       permissionsGranted: ['pages_manage_posts', 'pages_read_engagement'],
       updatedAt: new Date(),
-    })
+    } as any)
     .onConflictDoUpdate({
       target: [platformConnections.businessId, platformConnections.platform],
       set: {
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
       platformAccountName: page.name,
       permissionsGranted: ['instagram_basic', 'instagram_content_publish'],
       updatedAt: new Date(),
-    })
+    } as any)
     .onConflictDoUpdate({
       target: [platformConnections.businessId, platformConnections.platform],
       set: {

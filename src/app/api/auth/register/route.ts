@@ -39,14 +39,15 @@ export async function POST(req: NextRequest) {
   }
 
   const hashed = await bcrypt.hash(password, 12)
-  const newUser: typeof users.$inferInsert = {
+  // drizzle 0.36 omits nullable cols from $inferInsert — cast to bypass
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await db.insert(users).values({
     id: crypto.randomUUID(),
     email,
     password: hashed,
     name: name ?? null,
     updatedAt: new Date(),
-  }
-  await db.insert(users).values(newUser)
+  } as any)
 
   return NextResponse.json({ ok: true }, { status: 201 })
 }

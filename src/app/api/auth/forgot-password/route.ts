@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   await db.delete(verificationTokens).where(eq(verificationTokens.identifier, identifier))
 
   // Insert new token
-  await db.insert(verificationTokens).values({ identifier, token, expires })
+  await db.insert(verificationTokens).values({ identifier, token, expires } as any)
 
   const baseUrl =
     process.env.NEXTAUTH_URL ??

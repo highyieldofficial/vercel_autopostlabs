@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       platformAccountName,
       permissionsGranted,
       updatedAt: new Date(),
-    })
+    } as any)
     .onConflictDoUpdate({
       target: [platformConnections.businessId, platformConnections.platform],
       set: {

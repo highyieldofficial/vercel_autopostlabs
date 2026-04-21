@@ -77,7 +77,7 @@ export async function POST(
     success: result.success,
     errorCode: result.error?.code ?? null,
     errorMsg: result.error?.message ?? null,
-  })
+  } as any)
 
   if (result.success) {
     await db
