@@ -55,22 +55,35 @@ export async function createCheckoutUrl(opts: {
   const plan = PLANS[opts.plan]
   if (!plan.planId) throw new Error(`Plan ${opts.plan} has no Whop product ID configured`)
 
-  const res = await fetch('https://api.whop.com/api/v1/checkout_configurations', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+  const body = JSON.stringify({
+    plan_id: plan.planId,
+    redirect_url: opts.successUrl,
+    metadata: {
+      user_id: opts.userId,
+      user_email: opts.userEmail,
+      plan: opts.plan,
     },
-    body: JSON.stringify({
-      plan_id: plan.planId,
-      redirect_url: opts.successUrl,
-      metadata: {
-        user_id: opts.userId,
-        user_email: opts.userEmail,
-        plan: opts.plan,
-      },
-    }),
   })
+
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  }
+
+  // Try v2 first, fall back to v1
+  let res = await fetch('https://api.whop.com/api/v2/checkout_sessions', {
+    method: 'POST',
+    headers,
+    body,
+  })
+
+  if (res.status === 404 || res.status === 422) {
+    res = await fetch('https://api.whop.com/api/v1/checkout_configurations', {
+      method: 'POST',
+      headers,
+      body,
+    })
+  }
 
   if (!res.ok) {
     const err = await res.text()
