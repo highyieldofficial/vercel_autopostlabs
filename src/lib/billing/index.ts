@@ -55,10 +55,11 @@ export async function createCheckoutUrl(opts: {
   const plan = PLANS[opts.plan]
   if (!plan.planId) throw new Error(`Plan ${opts.plan} has no Whop product ID configured`)
 
-  // Whop uses product_id for prod_... IDs and plan_id for plan_... IDs
-  const idField = plan.planId.startsWith('prod_') ? 'product_id' : 'plan_id'
+  // Whop: prod_... → product_id field (v1); plan_... → plan_id field (v2 then v1)
+  const isProd = plan.planId.startsWith('prod_')
+  const idField = isProd ? 'product_id' : 'plan_id'
 
-  const body = JSON.stringify({
+  const payload = {
     [idField]: plan.planId,
     redirect_url: opts.successUrl,
     metadata: {
@@ -66,26 +67,22 @@ export async function createCheckoutUrl(opts: {
       user_email: opts.userEmail,
       plan: opts.plan,
     },
-  })
+  }
 
   const headers = {
     'Authorization': `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
   }
 
-  // Try v2 first, fall back to v1
-  let res = await fetch('https://api.whop.com/api/v2/checkout_sessions', {
-    method: 'POST',
-    headers,
-    body,
-  })
+  // prod_ IDs only work on v1; plan_ IDs try v2 first then fall back to v1
+  const endpoints = isProd
+    ? ['https://api.whop.com/api/v1/checkout_configurations']
+    : ['https://api.whop.com/api/v2/checkout_sessions', 'https://api.whop.com/api/v1/checkout_configurations']
 
-  if (res.status === 404 || res.status === 422) {
-    res = await fetch('https://api.whop.com/api/v1/checkout_configurations', {
-      method: 'POST',
-      headers,
-      body,
-    })
+  let res!: Response
+  for (const endpoint of endpoints) {
+    res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) })
+    if (res.ok || (res.status !== 404 && res.status !== 422 && res.status !== 400)) break
   }
 
   if (!res.ok) {
