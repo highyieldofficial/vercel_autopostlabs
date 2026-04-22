@@ -7,11 +7,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['postgres'],
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: '**.shopify.com' },
-      { protocol: 'https', hostname: '**.cdninstagram.com' },
-      { protocol: 'https', hostname: 'oaidalleapiprodscus.blob.core.windows.net' },
-      { protocol: 'https', hostname: '**.r2.dev' },
-      { protocol: 'https', hostname: '**.amazonaws.com' },
+      // Allow any HTTPS/HTTP image source (product images come from any store)
+      { protocol: 'https', hostname: '**' },
+      { protocol: 'http', hostname: '**' },
     ],
   },
   experimental: {

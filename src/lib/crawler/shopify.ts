@@ -157,7 +157,7 @@ export async function crawlGeneric(url: string): Promise<CrawlResult> {
   }
 
   // Also try fetching a /products, /shop, or /collections page for more products
-  if (products.length < 3) {
+  if (products.length < 5) {
     const extraProducts = await tryProductListingPages(base)
     if (extraProducts.length > products.length) products = extraProducts
   }
@@ -232,12 +232,21 @@ function parseSchemaProduct(p: any, baseUrl: string): CrawledProduct {
 // ─── Try common product listing pages ────────────────────────────────────────
 
 async function tryProductListingPages(base: string): Promise<CrawledProduct[]> {
-  const paths = ['/products', '/shop', '/collections/all', '/catalog', '/store']
+  const paths = [
+    '/products', '/shop', '/collections/all', '/catalog', '/store',
+    '/our-products', '/all-products', '/product-category', '/product',
+  ]
+
+  const chromeHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+  }
 
   for (const path of paths) {
     try {
       const res = await fetch(`${base}${path}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9' },
+        headers: chromeHeaders,
         signal: AbortSignal.timeout(10000),
       })
       if (!res.ok) continue
@@ -246,7 +255,7 @@ async function tryProductListingPages(base: string): Promise<CrawledProduct[]> {
       const products = extractJsonLdProducts($, base)
       if (products.length > 0) return products
       const heuristic = extractProductsHeuristic($, base)
-      if (heuristic.length > 2) return heuristic
+      if (heuristic.length > 0) return heuristic
     } catch {
       continue
     }
@@ -262,7 +271,8 @@ function extractProductsHeuristic(
 ): CrawledProduct[] {
   const products: CrawledProduct[] = []
   const seen = new Set<string>()
-  const pricePattern = /(?:\$|USD|EUR|GBP|£|€)\s*[\d,]+(?:\.\d{2})?/i
+  // Broad price pattern: handles $, £, €, Rs., PKR, SAR, AED, RM, ₹, ₨ etc.
+  const pricePattern = /(?:Rs\.?|PKR|SAR|AED|INR|RM|USD|EUR|GBP|CAD|AUD|₹|₨|\$|£|€)\s*[\d,]+(?:\.\d{1,2})?|[\d,]+(?:\.\d{1,2})?\s*(?:Rs\.?|PKR|SAR|AED|INR|RM)/i
 
   // Common product card selectors used by most themes
   const cardSelectors = [
@@ -271,10 +281,22 @@ function extractProductsHeuristic(
     '[class*="product-tile"]',
     '[class*="ProductCard"]',
     '[class*="ProductItem"]',
+    '[class*="product-grid"]',
+    '[class*="product-box"]',
+    '[class*="product-wrap"]',
+    '[class*="product_item"]',
+    '[class*="product_card"]',
     '[data-product-id]',
     '[data-product]',
+    '[data-hook="product-list-item"]',
     'li[class*="product"]',
     'article[class*="product"]',
+    '.woocommerce ul.products li',
+    '.products .product',
+    '.shop-loop-item',
+    '[class*="item-product"]',
+    '[class*="goods-item"]',
+    '[class*="catalog-item"]',
   ]
 
   for (const selector of cardSelectors) {
