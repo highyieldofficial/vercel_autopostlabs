@@ -55,35 +55,46 @@ export async function createCheckoutUrl(opts: {
   const plan = PLANS[opts.plan]
   if (!plan.planId) throw new Error(`Plan ${opts.plan} has no Whop product ID configured`)
 
-  // Whop: prod_... → product_id field (v1); plan_... → plan_id field (v2 then v1)
-  const isProd = plan.planId.startsWith('prod_')
-  const idField = isProd ? 'product_id' : 'plan_id'
-
-  const payload = {
-    [idField]: plan.planId,
-    redirect_url: opts.successUrl,
-    metadata: {
-      user_id: opts.userId,
-      user_email: opts.userEmail,
-      plan: opts.plan,
-    },
-  }
-
   const headers = {
     'Authorization': `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
   }
 
-  // prod_ IDs only work on v1; plan_ IDs try v2 first then fall back to v1
-  const endpoints = isProd
-    ? ['https://api.whop.com/api/v1/checkout_configurations']
-    : ['https://api.whop.com/api/v2/checkout_sessions', 'https://api.whop.com/api/v1/checkout_configurations']
-
-  let res!: Response
-  for (const endpoint of endpoints) {
-    res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) })
-    if (res.ok || (res.status !== 404 && res.status !== 422 && res.status !== 400)) break
+  // prod_ IDs: fetch the product to get its direct_link checkout URL
+  if (plan.planId.startsWith('prod_')) {
+    const productRes = await fetch(`https://api.whop.com/api/v2/products/${plan.planId}`, {
+      headers,
+    })
+    if (!productRes.ok) {
+      const err = await productRes.text()
+      throw new Error(`Whop product fetch error ${productRes.status}: ${err}`)
+    }
+    const product = await productRes.json() as {
+      direct_link?: string
+      url?: string
+      checkout_url?: string
+    }
+    const base = product.direct_link ?? product.checkout_url ?? product.url
+    if (!base) throw new Error('Whop product has no checkout URL')
+    const checkoutUrl = new URL(base)
+    checkoutUrl.searchParams.set('redirect_url', opts.successUrl)
+    return checkoutUrl.toString()
   }
+
+  // plan_ IDs: use checkout_configurations endpoint
+  const res = await fetch('https://api.whop.com/api/v1/checkout_configurations', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      plan_id: plan.planId,
+      redirect_url: opts.successUrl,
+      metadata: {
+        user_id: opts.userId,
+        user_email: opts.userEmail,
+        plan: opts.plan,
+      },
+    }),
+  })
 
   if (!res.ok) {
     const err = await res.text()
