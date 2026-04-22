@@ -102,9 +102,8 @@ export default async function BillingPage({
           </div>
           <ul className="space-y-2 flex-1">
             <PlanFeature>1 store</PlanFeature>
-            <PlanFeature>30 posts / month</PlanFeature>
-            <PlanFeature>2 platforms</PlanFeature>
-            <PlanFeature>Basic analytics</PlanFeature>
+            <PlanFeature>1 post / month</PlanFeature>
+            <PlanFeature>1 platform</PlanFeature>
           </ul>
           {currentTier === 'free' ? (
             <span className="block text-center text-sm font-medium text-gray-400 border border-gray-200 rounded-xl py-2">
@@ -125,11 +124,10 @@ export default async function BillingPage({
             <p className="text-3xl font-bold text-gray-900">$29<span className="text-base font-normal text-gray-400">/mo</span></p>
           </div>
           <ul className="space-y-2 flex-1">
-            <PlanFeature>5 stores</PlanFeature>
-            <PlanFeature>300 posts / month</PlanFeature>
-            <PlanFeature>4 platforms</PlanFeature>
-            <PlanFeature>Advanced analytics</PlanFeature>
-            <PlanFeature>Priority queue</PlanFeature>
+            <PlanFeature>1 store</PlanFeature>
+            <PlanFeature>30 posts / month</PlanFeature>
+            <PlanFeature>5 platforms</PlanFeature>
+            <PlanFeature>Full analytics</PlanFeature>
           </ul>
           {currentTier === 'pro' ? (
             <span className="block text-center text-sm font-medium text-brand-600 border border-brand-200 bg-brand-50 rounded-xl py-2">
@@ -147,11 +145,10 @@ export default async function BillingPage({
             <p className="text-3xl font-bold text-gray-900">$99<span className="text-base font-normal text-gray-400">/mo</span></p>
           </div>
           <ul className="space-y-2 flex-1">
-            <PlanFeature>25 stores</PlanFeature>
-            <PlanFeature>Unlimited posts</PlanFeature>
-            <PlanFeature>6 platforms</PlanFeature>
-            <PlanFeature>White-label exports</PlanFeature>
-            <PlanFeature>Dedicated support</PlanFeature>
+            <PlanFeature>5 stores</PlanFeature>
+            <PlanFeature>30 posts / store / month</PlanFeature>
+            <PlanFeature>All platforms</PlanFeature>
+            <PlanFeature>Full analytics</PlanFeature>
           </ul>
           {currentTier === 'agency' ? (
             <span className="block text-center text-sm font-medium text-brand-600 border border-brand-200 bg-brand-50 rounded-xl py-2">
