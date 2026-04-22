@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { db, businesses, products, contentPosts } from '@/lib/db'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 const generateSchema = z.object({
