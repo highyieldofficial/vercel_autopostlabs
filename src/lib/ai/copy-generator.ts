@@ -94,8 +94,22 @@ Respond ONLY with valid JSON (no markdown, no code fences):
 
 // ─── Brand Analyzer ───────────────────────────────────────────────────────────
 
+const defaultBrandProfile = (businessName: string): BrandProfile => ({
+  voice: 'friendly and professional',
+  toneKeywords: ['quality', 'value', 'trust'],
+  targetAudience: 'general consumers',
+  primaryColors: [],
+  tagline: businessName ? `Welcome to ${businessName}` : undefined,
+})
+
 export async function analyzeBrand(websiteText: string, businessName: string): Promise<BrandProfile> {
-  const prompt = `Extract brand profile from this website copy and respond ONLY with valid JSON (no markdown):
+  // If no meaningful text was scraped, return a sensible default immediately
+  if (!websiteText || websiteText.trim().length < 30) {
+    return defaultBrandProfile(businessName)
+  }
+
+  try {
+    const prompt = `Extract brand profile from this website copy and respond ONLY with valid JSON (no markdown):
 { "voice": string, "toneKeywords": string[], "targetAudience": string, "tagline": string | null }
 
 Business: ${businessName}
@@ -103,17 +117,21 @@ Business: ${businessName}
 Website copy:
 ${websiteText.slice(0, 4000)}`
 
-  const model = getClient().getGenerativeModel({ model: 'gemini-2.0-flash' })
-  const result = await model.generateContent(prompt)
-  const text = result.response.text().trim()
-  const json = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
-  const raw = JSON.parse(json)
+    const model = getClient().getGenerativeModel({ model: 'gemini-2.0-flash' })
+    const result = await model.generateContent(prompt)
+    const text = result.response.text().trim()
+    const json = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+    const raw = JSON.parse(json)
 
-  return {
-    voice: raw.voice ?? 'friendly and professional',
-    toneKeywords: raw.toneKeywords ?? [],
-    targetAudience: raw.targetAudience ?? 'general consumers',
-    primaryColors: [],
-    tagline: raw.tagline ?? undefined,
+    return {
+      voice: raw.voice ?? 'friendly and professional',
+      toneKeywords: Array.isArray(raw.toneKeywords) ? raw.toneKeywords : [],
+      targetAudience: raw.targetAudience ?? 'general consumers',
+      primaryColors: [],
+      tagline: raw.tagline ?? undefined,
+    }
+  } catch {
+    // Gemini unavailable, rate-limited, or returned malformed JSON — use defaults
+    return defaultBrandProfile(businessName)
   }
 }

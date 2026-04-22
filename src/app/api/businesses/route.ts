@@ -4,6 +4,9 @@ import { db, businesses, products, contentPosts } from '@/lib/db'
 import { eq, desc, count } from 'drizzle-orm'
 import { z } from 'zod'
 
+// Allow up to 60s for the crawl + Gemini analysis to complete
+export const maxDuration = 60
+
 const createBusinessSchema = z.object({
   websiteUrl: z.string().url(),
 })
@@ -78,73 +81,72 @@ export async function POST(req: NextRequest) {
     } as any)
     .returning()
 
-  // Fire and forget — Vercel will keep the function alive for background work
-  // The cron job will catch anything that gets stuck
-  void (async () => {
-    try {
-      const { crawl } = await import('@/lib/crawler/shopify')
-      const { analyzeBrand } = await import('@/lib/ai')
-      const result = await crawl(websiteUrl)
-      if (!result) {
-        await db
-          .update(businesses)
-          .set({ ingestionStatus: 'failed', updatedAt: new Date() } as any)
-          .where(eq(businesses.id, businessId))
-        return
-      }
-      const brandProfile = await analyzeBrand(result.brand_text ?? '', result.business_name ?? websiteUrl)
-      brandProfile.primaryColors = result.colors ?? []
+  // Run ingestion synchronously within the 60s window (maxDuration above).
+  // This is more reliable than fire-and-forget which Vercel may kill after the response.
+  // The cron job at /api/cron/ingest will rescue any businesses stuck in 'pending'.
+  try {
+    await db
+      .update(businesses)
+      .set({ ingestionStatus: 'in_progress', updatedAt: new Date() } as any)
+      .where(eq(businesses.id, businessId))
+
+    const { crawl } = await import('@/lib/crawler/shopify')
+    const { analyzeBrand } = await import('@/lib/ai')
+    const result = await crawl(websiteUrl)
+
+    const brandProfile = await analyzeBrand(result.brand_text ?? '', result.business_name ?? websiteUrl)
+    brandProfile.primaryColors = result.colors ?? []
+
+    await db
+      .update(businesses)
+      .set({
+        businessName: result.business_name,
+        platformType: result.platform_type ?? 'generic',
+        brandProfile: brandProfile as never,
+        ingestionStatus: 'completed',
+        lastCrawledAt: new Date(),
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(businesses.id, businessId))
+
+    for (const p of result.products ?? []) {
       await db
-        .update(businesses)
-        .set({
-          businessName: result.business_name,
-          platformType: result.platform_type ?? 'generic',
-          brandProfile: brandProfile as never,
-          ingestionStatus: 'completed',
-          lastCrawledAt: new Date(),
+        .insert(products)
+        .values({
+          id: crypto.randomUUID(),
+          businessId,
+          externalId: p.external_id ?? p.name,
+          name: p.name,
+          description: p.description,
+          price: p.price?.toString(),
+          currency: p.currency ?? 'USD',
+          category: p.category,
+          tags: p.tags ?? [],
+          sourceImages: p.images ?? [],
+          shopifyHandle: p.handle,
+          isActive: true,
           updatedAt: new Date(),
         } as any)
-        .where(eq(businesses.id, businessId))
-      // Upsert products
-      for (const p of result.products ?? []) {
-        await db
-          .insert(products)
-          .values({
-            id: crypto.randomUUID(),
-            businessId,
-            externalId: p.external_id ?? p.name,
+        .onConflictDoUpdate({
+          target: [products.businessId, products.externalId],
+          set: {
             name: p.name,
             description: p.description,
             price: p.price?.toString(),
-            currency: p.currency ?? 'USD',
-            category: p.category,
             tags: p.tags ?? [],
             sourceImages: p.images ?? [],
-            shopifyHandle: p.handle,
             isActive: true,
             updatedAt: new Date(),
-          } as any)
-          .onConflictDoUpdate({
-            target: [products.businessId, products.externalId],
-            set: {
-              name: p.name,
-              description: p.description,
-              price: p.price?.toString(),
-              tags: p.tags ?? [],
-              sourceImages: p.images ?? [],
-              isActive: true,
-              updatedAt: new Date(),
-            } as any,
-          })
-      }
-    } catch (err) {
-      console.error('[ingest] failed:', err)
-      await db
-        .update(businesses)
-        .set({ ingestionStatus: 'failed', updatedAt: new Date() } as any)
-        .where(eq(businesses.id, businessId))
+          } as any,
+        })
     }
-  })()
+  } catch (err) {
+    console.error('[ingest] failed:', err)
+    await db
+      .update(businesses)
+      .set({ ingestionStatus: 'failed', updatedAt: new Date() } as any)
+      .where(eq(businesses.id, businessId))
+  }
 
   return NextResponse.json(business, { status: 201 })
 }
