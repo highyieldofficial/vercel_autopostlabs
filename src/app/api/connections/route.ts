@@ -72,6 +72,17 @@ export async function POST(req: NextRequest) {
     .limit(1)
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 })
 
+  // ── Plan gate: platform connection limit ───────────────────────────────────
+  const { getPlanLimits, countActivePlatformConnections, upgradeMsg } = await import('@/lib/plan-gate')
+  const gate = await getPlanLimits(userId, session.user?.email)
+  const connCount = await countActivePlatformConnections(businessId)
+  if (connCount >= gate.maxPlatforms) {
+    return NextResponse.json(
+      { error: upgradeMsg(gate.tier, `Your ${gate.tier} plan allows up to ${gate.maxPlatforms} connected platform(s).`) },
+      { status: 403 },
+    )
+  }
+
   const [connection] = await db
     .insert(platformConnections)
     .values({

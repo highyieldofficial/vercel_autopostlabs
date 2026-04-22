@@ -66,6 +66,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
+  // ── Plan gate: store limit ──────────────────────────────────────────────────
+  const { getPlanLimits, countUserBusinesses, upgradeMsg } = await import('@/lib/plan-gate')
+  const gate = await getPlanLimits(userId, session.user?.email)
+  const storeCount = await countUserBusinesses(userId)
+  if (storeCount >= gate.maxBusinesses) {
+    return NextResponse.json(
+      { error: upgradeMsg(gate.tier, `Your ${gate.tier} plan allows ${gate.maxBusinesses} store(s).`) },
+      { status: 403 },
+    )
+  }
+
   const { websiteUrl } = parsed.data
 
   const businessId = crypto.randomUUID()

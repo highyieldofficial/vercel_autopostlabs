@@ -28,6 +28,34 @@ export async function POST(
 
   const { platforms, variantCount } = parsed.data
 
+  // ── Plan gate: platform count + monthly post quota ─────────────────────────
+  const { getPlanLimits, countPostsThisMonth, upgradeMsg } = await import('@/lib/plan-gate')
+  const gate = await getPlanLimits(userId, session.user?.email)
+
+  if (platforms.length > gate.maxPlatforms) {
+    return NextResponse.json(
+      { error: upgradeMsg(gate.tier, `Your ${gate.tier} plan allows up to ${gate.maxPlatforms} platform(s) per generation.`) },
+      { status: 403 },
+    )
+  }
+
+  const userBusinessIds = await db
+    .select({ id: businesses.id })
+    .from(businesses)
+    .where(eq(businesses.userId, userId))
+    .then((r) => r.map((x) => x.id))
+
+  const postsThisMonth = await countPostsThisMonth(userBusinessIds)
+  const newPostCount = platforms.length * variantCount
+
+  if (postsThisMonth + newPostCount > gate.maxPostsPerMonth) {
+    const remaining = Math.max(0, gate.maxPostsPerMonth - postsThisMonth)
+    return NextResponse.json(
+      { error: upgradeMsg(gate.tier, `Monthly post limit reached. You have ${remaining} post(s) left this month (${gate.maxPostsPerMonth}/mo on ${gate.tier} plan).`) },
+      { status: 403 },
+    )
+  }
+
   const product = await db.query.products.findFirst({
     where: (p, { eq, and, inArray }) =>
       and(

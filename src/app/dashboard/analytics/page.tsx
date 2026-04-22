@@ -5,10 +5,35 @@ import { PlatformIcon } from '@/components/ui/platform-icon'
 import { EmptyState } from '@/components/ui/empty-state'
 import { EngagementChart } from './engagement-chart'
 import { api } from '@/lib/api'
+import { getPlanLimits } from '@/lib/plan-gate'
 
 export default async function AnalyticsPage() {
   const session = await auth()
   const userId = session?.user?.id
+
+  // ── Plan gate: analytics requires Pro or Agency ────────────────────────────
+  const gate = userId ? await getPlanLimits(userId, session?.user?.email) : null
+  if (!gate?.hasAnalytics) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-8">Analytics</h1>
+        <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center">
+          <p className="text-4xl mb-4">📊</p>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Analytics is a Pro feature</h2>
+          <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
+            Upgrade to Pro or Agency to unlock detailed engagement stats, platform breakdowns, and top-post rankings.
+          </p>
+          <a
+            href="/dashboard/billing"
+            className="inline-flex items-center px-5 py-2.5 bg-brand-600 text-white text-sm font-medium rounded-xl hover:bg-brand-700 transition-colors"
+          >
+            View plans →
+          </a>
+        </div>
+      </div>
+    )
+  }
+
   const data = userId ? await api.analytics.summary(userId).catch(() => null) : null
 
   if (!data || data.totals.published === 0) {
