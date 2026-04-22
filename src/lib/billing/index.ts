@@ -60,33 +60,29 @@ export async function createCheckoutUrl(opts: {
     'Content-Type': 'application/json',
   }
 
-  // prod_ IDs: fetch the product to get its direct_link checkout URL
+  // For prod_ IDs: look up the product's plans and grab the first plan_id,
+  // then create a checkout configuration with it
+  let planId = plan.planId
   if (plan.planId.startsWith('prod_')) {
-    const productRes = await fetch(`https://api.whop.com/api/v2/products/${plan.planId}`, {
-      headers,
-    })
-    if (!productRes.ok) {
-      const err = await productRes.text()
-      throw new Error(`Whop product fetch error ${productRes.status}: ${err}`)
+    const plansRes = await fetch(
+      `https://api.whop.com/api/v2/products/${plan.planId}/plans`,
+      { headers },
+    )
+    if (!plansRes.ok) {
+      const err = await plansRes.text()
+      throw new Error(`Whop plans fetch error ${plansRes.status}: ${err}`)
     }
-    const product = await productRes.json() as {
-      direct_link?: string
-      url?: string
-      checkout_url?: string
-    }
-    const base = product.direct_link ?? product.checkout_url ?? product.url
-    if (!base) throw new Error('Whop product has no checkout URL')
-    const checkoutUrl = new URL(base)
-    checkoutUrl.searchParams.set('redirect_url', opts.successUrl)
-    return checkoutUrl.toString()
+    const plansData = await plansRes.json() as { data?: { id: string }[]; plans?: { id: string }[] }
+    const plansList = plansData.data ?? plansData.plans ?? []
+    if (plansList.length === 0) throw new Error('No plans found for this Whop product')
+    planId = plansList[0].id
   }
 
-  // plan_ IDs: use checkout_configurations endpoint
   const res = await fetch('https://api.whop.com/api/v1/checkout_configurations', {
     method: 'POST',
     headers,
     body: JSON.stringify({
-      plan_id: plan.planId,
+      plan_id: planId,
       redirect_url: opts.successUrl,
       metadata: {
         user_id: opts.userId,
