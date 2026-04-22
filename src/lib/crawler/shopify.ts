@@ -1,4 +1,15 @@
+/**
+ * Universal e-commerce crawler
+ *
+ * Detection order (fastest / most reliable first):
+ *  1. Shopify  — /products.json  (public, no auth)
+ *  2. WooCommerce — /wp-json/wc/v3/products (public read)
+ *  3. JSON-LD / schema.org Product markup (works on almost every modern store)
+ *  4. Open Graph + meta heuristics (fallback)
+ */
 import * as cheerio from 'cheerio'
+
+// ─── Public types ─────────────────────────────────────────────────────────────
 
 export interface CrawledProduct {
   external_id: string
@@ -14,110 +25,343 @@ export interface CrawledProduct {
 
 export interface CrawlResult {
   business_name: string | null
-  platform_type: 'shopify' | 'generic'
+  platform_type: 'shopify' | 'woocommerce' | 'generic'
   products: CrawledProduct[]
   brand_text: string
   colors: string[]
 }
 
-export async function crawlShopify(baseUrl: string): Promise<CrawlResult | null> {
-  const base = baseUrl.replace(/\/$/, '')
+// ─── Main entry point ─────────────────────────────────────────────────────────
 
+export async function crawl(url: string): Promise<CrawlResult> {
+  const base = normalizeBase(url)
+
+  // 1. Shopify
+  const shopify = await crawlShopify(base)
+  if (shopify) return shopify
+
+  // 2. WooCommerce
+  const woo = await crawlWooCommerce(base)
+  if (woo) return woo
+
+  // 3. Generic (JSON-LD + heuristic)
+  return crawlGeneric(base)
+}
+
+// ─── Shopify ──────────────────────────────────────────────────────────────────
+
+export async function crawlShopify(baseUrl: string): Promise<CrawlResult | null> {
+  const base = normalizeBase(baseUrl)
   try {
     const res = await fetch(`${base}/products.json?limit=250`, {
       headers: { 'User-Agent': 'AutoPostLabs/1.0' },
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(15000),
     })
     if (!res.ok) return null
     const data = await res.json()
-    if (!data.products) return null
+    if (!data?.products?.length) return null
 
     const products: CrawledProduct[] = (data.products as any[]).slice(0, 50).map((p: any) => {
       const variant = p.variants?.[0] ?? {}
-      const price = variant.price ? parseFloat(variant.price) : undefined
-      const images = (p.images ?? []).map((img: any) => ({
-        url: img.src,
-        alt: img.alt ?? '',
-        width: img.width,
-        height: img.height,
-      }))
       return {
         external_id: String(p.id),
         name: p.title,
         description: p.body_html ? stripHtml(p.body_html) : undefined,
-        price,
+        price: variant.price ? parseFloat(variant.price) : undefined,
         currency: 'USD',
         category: p.product_type || undefined,
         tags: p.tags ? p.tags.split(', ').filter(Boolean) : [],
-        images,
+        images: (p.images ?? []).map((img: any) => ({
+          url: img.src,
+          alt: img.alt ?? '',
+          width: img.width,
+          height: img.height,
+        })),
         handle: p.handle,
       }
     })
 
-    // Fetch homepage for brand text
-    let business_name: string | null = null
-    let brand_text = ''
-    let colors: string[] = []
-
-    try {
-      const homeRes = await fetch(base, {
-        headers: { 'User-Agent': 'AutoPostLabs/1.0' },
-        signal: AbortSignal.timeout(15000),
-      })
-      const html = await homeRes.text()
-      const result = extractBrandData(html, base)
-      business_name = result.business_name
-      brand_text = result.brand_text
-      colors = result.colors
-    } catch {
-      // brand text is optional
-    }
-
-    return { business_name, platform_type: 'shopify', products, brand_text, colors }
+    const brandData = await fetchBrandData(base)
+    return { ...brandData, platform_type: 'shopify', products }
   } catch {
     return null
   }
 }
 
-export async function crawlGeneric(url: string): Promise<CrawlResult> {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; AutoPostLabs/1.0)',
-    },
-    signal: AbortSignal.timeout(20000),
-  })
-  const html = await res.text()
-  const { business_name, brand_text, colors } = extractBrandData(html, url)
-  const products = extractProductsHeuristic(html, url)
+// ─── WooCommerce ──────────────────────────────────────────────────────────────
 
-  return {
-    business_name,
-    platform_type: 'generic',
-    products,
-    brand_text,
-    colors,
+async function crawlWooCommerce(base: string): Promise<CrawlResult | null> {
+  try {
+    const res = await fetch(`${base}/wp-json/wc/v3/products?per_page=50&status=publish`, {
+      headers: { 'User-Agent': 'AutoPostLabs/1.0' },
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (!Array.isArray(data) || data.length === 0) return null
+
+    const products: CrawledProduct[] = data.map((p: any) => ({
+      external_id: String(p.id),
+      name: p.name,
+      description: p.short_description ? stripHtml(p.short_description) : undefined,
+      price: p.price ? parseFloat(p.price) : undefined,
+      currency: 'USD',
+      category: p.categories?.[0]?.name,
+      tags: (p.tags ?? []).map((t: any) => t.name),
+      images: (p.images ?? []).map((img: any) => ({
+        url: img.src,
+        alt: img.alt ?? '',
+      })),
+      handle: p.slug,
+    }))
+
+    const brandData = await fetchBrandData(base)
+    return { ...brandData, platform_type: 'woocommerce', products }
+  } catch {
+    return null
   }
 }
 
-export async function crawl(url: string): Promise<CrawlResult> {
-  const shopify = await crawlShopify(url)
-  if (shopify) return shopify
-  return crawlGeneric(url)
+// ─── Generic (JSON-LD + heuristic) ────────────────────────────────────────────
+
+export async function crawlGeneric(url: string): Promise<CrawlResult> {
+  const base = normalizeBase(url)
+
+  let html = ''
+  try {
+    const res = await fetch(base, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AutoPostLabs/1.0)' },
+      signal: AbortSignal.timeout(20000),
+    })
+    html = await res.text()
+  } catch {
+    return { business_name: null, platform_type: 'generic', products: [], brand_text: '', colors: [] }
+  }
+
+  const $ = cheerio.load(html)
+  const brandData = extractBrandData($, html, base)
+
+  // Try JSON-LD first — most reliable
+  let products = extractJsonLdProducts($, base)
+
+  // If JSON-LD found nothing, try a smarter DOM heuristic
+  if (products.length === 0) {
+    products = extractProductsHeuristic($, base)
+  }
+
+  // Also try fetching a /products, /shop, or /collections page for more products
+  if (products.length < 3) {
+    const extraProducts = await tryProductListingPages(base)
+    if (extraProducts.length > products.length) products = extraProducts
+  }
+
+  return { ...brandData, platform_type: 'generic', products }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── JSON-LD extractor ────────────────────────────────────────────────────────
 
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+function extractJsonLdProducts(
+  $: ReturnType<typeof cheerio.load>,
+  baseUrl: string,
+): CrawledProduct[] {
+  const products: CrawledProduct[] = []
+
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const raw = $(el).html() ?? ''
+      const data = JSON.parse(raw)
+
+      const items: any[] = Array.isArray(data)
+        ? data
+        : data['@graph']
+          ? data['@graph']
+          : [data]
+
+      for (const item of items) {
+        if (item['@type'] === 'Product') {
+          products.push(parseSchemaProduct(item, baseUrl))
+        }
+        // ItemList of Products
+        if (item['@type'] === 'ItemList' && Array.isArray(item.itemListElement)) {
+          for (const el of item.itemListElement) {
+            const inner = el.item ?? el
+            if (inner['@type'] === 'Product') {
+              products.push(parseSchemaProduct(inner, baseUrl))
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore malformed JSON-LD
+    }
+  })
+
+  return products.slice(0, 50)
 }
 
-function extractBrandData(html: string, baseUrl: string): {
+function parseSchemaProduct(p: any, baseUrl: string): CrawledProduct {
+  const offers = Array.isArray(p.offers) ? p.offers[0] : p.offers
+  const price = offers?.price ? parseFloat(String(offers.price)) : undefined
+  const currency = offers?.priceCurrency ?? 'USD'
+
+  const rawImages = Array.isArray(p.image) ? p.image : p.image ? [p.image] : []
+  const images = rawImages.map((img: any) => {
+    const src = typeof img === 'string' ? img : img.url ?? img.contentUrl ?? ''
+    return { url: resolveUrl(src, baseUrl), alt: p.name ?? '' }
+  })
+
+  return {
+    external_id: p['@id'] ?? p.sku ?? p.name,
+    name: p.name ?? 'Product',
+    description: p.description ? stripHtml(String(p.description)) : undefined,
+    price,
+    currency,
+    category: p.category,
+    tags: Array.isArray(p.keywords) ? p.keywords : p.keywords ? [p.keywords] : [],
+    images,
+  }
+}
+
+// ─── Try common product listing pages ────────────────────────────────────────
+
+async function tryProductListingPages(base: string): Promise<CrawledProduct[]> {
+  const paths = ['/products', '/shop', '/collections/all', '/catalog', '/store']
+
+  for (const path of paths) {
+    try {
+      const res = await fetch(`${base}${path}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AutoPostLabs/1.0)' },
+        signal: AbortSignal.timeout(10000),
+      })
+      if (!res.ok) continue
+      const html = await res.text()
+      const $ = cheerio.load(html)
+      const products = extractJsonLdProducts($, base)
+      if (products.length > 0) return products
+      const heuristic = extractProductsHeuristic($, base)
+      if (heuristic.length > 2) return heuristic
+    } catch {
+      continue
+    }
+  }
+  return []
+}
+
+// ─── DOM heuristic extractor ─────────────────────────────────────────────────
+
+function extractProductsHeuristic(
+  $: ReturnType<typeof cheerio.load>,
+  baseUrl: string,
+): CrawledProduct[] {
+  const products: CrawledProduct[] = []
+  const seen = new Set<string>()
+  const pricePattern = /(?:\$|USD|EUR|GBP|£|€)\s*[\d,]+(?:\.\d{2})?/i
+
+  // Common product card selectors used by most themes
+  const cardSelectors = [
+    '[class*="product-card"]',
+    '[class*="product-item"]',
+    '[class*="product-tile"]',
+    '[class*="ProductCard"]',
+    '[class*="ProductItem"]',
+    '[data-product-id]',
+    '[data-product]',
+    'li[class*="product"]',
+    'article[class*="product"]',
+  ]
+
+  for (const selector of cardSelectors) {
+    $(selector).each((_, el) => {
+      if (products.length >= 30) return false
+      const text = $(el).text()
+      if (!pricePattern.test(text)) return
+
+      const nameEl = $(el).find('h1, h2, h3, h4, [class*="title"], [class*="name"], a').first()
+      const name = nameEl.text().trim()
+      if (!name || name.length < 2 || seen.has(name)) return
+      seen.add(name)
+
+      const priceMatch = text.match(pricePattern)
+      const price = priceMatch
+        ? parseFloat(priceMatch[0].replace(/[^0-9.]/g, ''))
+        : undefined
+
+      const imgSrc = $(el).find('img').first().attr('src') ?? ''
+      const imgUrl = resolveUrl(imgSrc, baseUrl)
+
+      products.push({
+        external_id: name,
+        name,
+        price,
+        currency: 'USD',
+        tags: [],
+        images: imgUrl ? [{ url: imgUrl, alt: name }] : [],
+      })
+    })
+    if (products.length >= 5) break
+  }
+
+  // Fallback: scan all elements if card selectors found nothing
+  if (products.length === 0) {
+    $('*').each((_, el) => {
+      if (products.length >= 20) return false
+      const children = $(el).children()
+      if (children.length > 12) return
+      const text = $(el).text()
+      if (!pricePattern.test(text)) return
+
+      const nameEl = $(el).find('h1,h2,h3,h4,a').first()
+      const name = nameEl.text().trim()
+      if (!name || name.length < 3 || seen.has(name)) return
+      seen.add(name)
+
+      const priceMatch = text.match(pricePattern)
+      const price = priceMatch
+        ? parseFloat(priceMatch[0].replace(/[^0-9.]/g, ''))
+        : undefined
+
+      const imgSrc = $(el).find('img').first().attr('src') ?? ''
+      const imgUrl = resolveUrl(imgSrc, baseUrl)
+
+      products.push({
+        external_id: name,
+        name,
+        price,
+        currency: 'USD',
+        tags: [],
+        images: imgUrl ? [{ url: imgUrl, alt: name }] : [],
+      })
+    })
+  }
+
+  return products
+}
+
+// ─── Brand data helpers ───────────────────────────────────────────────────────
+
+async function fetchBrandData(base: string): Promise<{
   business_name: string | null
   brand_text: string
   colors: string[]
-} {
-  const $ = cheerio.load(html)
+}> {
+  try {
+    const res = await fetch(base, {
+      headers: { 'User-Agent': 'AutoPostLabs/1.0' },
+      signal: AbortSignal.timeout(10000),
+    })
+    const html = await res.text()
+    const $ = cheerio.load(html)
+    return extractBrandData($, html, base)
+  } catch {
+    return { business_name: null, brand_text: '', colors: [] }
+  }
+}
 
+function extractBrandData(
+  $: ReturnType<typeof cheerio.load>,
+  _html: string,
+  _baseUrl: string,
+): { business_name: string | null; brand_text: string; colors: string[] } {
   const ogSiteName = $('meta[property="og:site_name"]').attr('content')
   const appName = $('meta[name="application-name"]').attr('content')
   const ogTitle = $('meta[property="og:title"]').attr('content')
@@ -126,13 +370,14 @@ function extractBrandData(html: string, baseUrl: string): {
   const business_name =
     ogSiteName ||
     appName ||
-    (ogTitle ? ogTitle.split('|')[0].trim() : null) ||
-    (titleTag ? titleTag.split('|')[0].trim() : null)
+    (ogTitle ? ogTitle.split(/[|–\-]/)[0].trim() : null) ||
+    (titleTag ? titleTag.split(/[|–\-]/)[0].trim() : null) ||
+    null
 
   const sections: string[] = []
-  $('p, h1, h2, h3').each((_, el) => {
+  $('p, h1, h2, h3, [class*="hero"], [class*="banner"], [class*="tagline"]').each((_, el) => {
     const text = $(el).text().trim()
-    if (text.length > 30) sections.push(text)
+    if (text.length > 20 && text.length < 500) sections.push(text)
   })
   const brand_text = sections.slice(0, 20).join(' ')
 
@@ -143,46 +388,24 @@ function extractBrandData(html: string, baseUrl: string): {
     const matches = $(el).html()?.match(/#[0-9a-fA-F]{6}/g) ?? []
     colors.push(...matches.slice(0, 5))
   })
-  const unique = [...new Set(colors)].slice(0, 6)
 
-  return { business_name: business_name || null, brand_text, colors: unique }
+  return { business_name, brand_text, colors: [...new Set(colors)].slice(0, 6) }
 }
 
-function extractProductsHeuristic(html: string, baseUrl: string): CrawledProduct[] {
-  const $ = cheerio.load(html)
-  const products: CrawledProduct[] = []
-  const pricePattern = /\$\s*[\d,]+(?:\.\d{2})?/
+// ─── Utility ─────────────────────────────────────────────────────────────────
 
-  $('*').each((_, el) => {
-    if (products.length >= 20) return false
-    const text = $(el).text()
-    if (!pricePattern.test(text)) return
-    const children = $(el).children()
-    if (children.length > 10) return // skip large containers
+function normalizeBase(url: string): string {
+  const u = url.trim().replace(/\/$/, '')
+  return u.startsWith('http') ? u : `https://${u}`
+}
 
-    const nameEl = $(el).find('h1, h2, h3, h4, a').first()
-    const name = nameEl.text().trim()
-    if (!name || name.length < 3) return
+function resolveUrl(src: string, baseUrl: string): string {
+  if (!src) return ''
+  if (src.startsWith('//')) return 'https:' + src
+  if (src.startsWith('http')) return src
+  try { return new URL(src, baseUrl).href } catch { return src }
+}
 
-    const priceMatch = text.match(pricePattern)
-    const price = priceMatch
-      ? parseFloat(priceMatch[0].replace('$', '').replace(',', ''))
-      : undefined
-
-    const imgSrc = $(el).find('img').first().attr('src')
-    let imgUrl = imgSrc ?? ''
-    if (imgUrl.startsWith('//')) imgUrl = 'https:' + imgUrl
-    else if (imgUrl.startsWith('/')) imgUrl = new URL(imgUrl, baseUrl).href
-
-    products.push({
-      external_id: name,
-      name,
-      price,
-      currency: 'USD',
-      tags: [],
-      images: imgUrl ? [{ url: imgUrl, alt: name }] : [],
-    })
-  })
-
-  return products
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
 }
