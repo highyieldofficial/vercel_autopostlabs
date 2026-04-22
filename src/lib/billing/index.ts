@@ -55,8 +55,11 @@ export async function createCheckoutUrl(opts: {
   const plan = PLANS[opts.plan]
   if (!plan.planId) throw new Error(`Plan ${opts.plan} has no Whop product ID configured`)
 
+  // Whop uses product_id for prod_... IDs and plan_id for plan_... IDs
+  const idField = plan.planId.startsWith('prod_') ? 'product_id' : 'plan_id'
+
   const body = JSON.stringify({
-    plan_id: plan.planId,
+    [idField]: plan.planId,
     redirect_url: opts.successUrl,
     metadata: {
       user_id: opts.userId,
